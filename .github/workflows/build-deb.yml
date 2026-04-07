@@ -1,0 +1,78 @@
+name: Build Debian Package
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  app_id: visualization.pictureit
+  pkg_name: kodi-visualization-pictureit
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            gl_pkg: libgl1-mesa-dev
+          - arch: arm64
+            gl_pkg: libgles2-mesa-dev
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Add Kodi PPA and install build dependencies
+      run: |
+        sudo add-apt-repository -y ppa:team-xbmc/ppa
+        sudo apt-get update
+        sudo apt-get install -y \
+          debhelper \
+          cmake \
+          kodi-addon-dev \
+          ${{ matrix.gl_pkg }} \
+          libglm-dev \
+          dpkg-dev \
+          devscripts
+
+    - name: Generate debian/changelog from template
+      run: |
+        # Derive version from addon.xml.in or git tag
+        if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/v}"
+        else
+          VERSION=$(sed -n 's/.*version="\([0-9][^"]*\)".*/\1/p' visualization.pictureit/addon.xml.in | head -1)
+          VERSION="${VERSION}~$(date +%Y%m%d).$(echo ${GITHUB_SHA} | cut -c1-7)"
+        fi
+
+        DIST=$(lsb_release -cs)
+        TAGREV=1
+
+        sed \
+          -e "s/#PACKAGEVERSION#/${VERSION}/g" \
+          -e "s/#TAGREV#/${TAGREV}/g" \
+          -e "s/#DIST#/${DIST}/g" \
+          debian/changelog.in > debian/changelog
+
+        echo "Generated changelog:"
+        cat debian/changelog
+
+    - name: Build Debian package
+      run: |
+        dpkg-buildpackage -us -uc -b -j$(nproc)
+
+    - name: Collect built packages
+      run: |
+        mkdir -p artifacts
+        cp ../${pkg_name}*.deb artifacts/
+        ls -lh artifacts/
+
+    - name: Upload .deb artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: deb-packages-${{ matrix.arch }}
+        path: artifacts/*.deb
