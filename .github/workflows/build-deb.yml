@@ -14,14 +14,6 @@ env:
 jobs:
   build-deb:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            gl_pkg: libgl1-mesa-dev
-          - arch: arm64
-            gl_pkg: libgles2-mesa-dev
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
@@ -34,7 +26,7 @@ jobs:
           debhelper \
           cmake \
           kodi-addons-dev \
-          ${{ matrix.gl_pkg }} \
+          libgl1-mesa-dev \
           libglm-dev \
           dpkg-dev \
           devscripts
@@ -74,5 +66,5 @@ jobs:
     - name: Upload .deb artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: deb-packages-${{ matrix.arch }}
+        name: deb-packages-amd64
         path: artifacts/*.deb
