@@ -73,6 +73,7 @@ ADDON_STATUS CVisPictureIt::Create()
   m_fadeTimeMs = kodi::addon::GetSettingInt("fade_time_ms");
   m_visEnabled = kodi::addon::GetSettingBoolean("vis_enabled");
   m_visBgEnabled = kodi::addon::GetSettingBoolean("vis_bg_enabled");
+  m_clockEnabled = kodi::addon::GetSettingBoolean("clock_enabled");
 
   m_visWidth = kodi::addon::GetSettingInt("vis_half_width");
   m_visWidth = m_visWidth * 1.0f / 100;
@@ -310,6 +311,11 @@ void CVisPictureIt::Render()
     }
 
     DisableShader();
+  }
+
+  if (m_clockEnabled)
+  {
+    draw_clock();
   }
 
   finish_render();
@@ -655,6 +661,142 @@ void CVisPictureIt::draw_bars(int i, GLfloat x1, GLfloat x2)
   framedTextures[3].vertex = sPosition(-x2, m_visBottomEdge);  // Bottom Left
   glBufferData(GL_ARRAY_BUFFER, sizeof(sLight)*4, framedTextures, GL_STATIC_DRAW);
   glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+}
+
+void CVisPictureIt::draw_clock_segment(float x1, float y1, float x2, float y2, sColor color)
+{
+  sLight quad[4];
+  quad[0].color = quad[1].color = quad[2].color = quad[3].color = color;
+  quad[0].vertex = sPosition(x1, y1);
+  quad[1].vertex = sPosition(x2, y1);
+  quad[2].vertex = sPosition(x2, y2);
+  quad[3].vertex = sPosition(x1, y2);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(sLight) * 4, quad, GL_STATIC_DRAW);
+  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+}
+
+void CVisPictureIt::draw_clock_digit(int digit, float x, float y, float w, float h, sColor color)
+{
+  // Seven-segment display: segments indexed as
+  // 0=top, 1=top-right, 2=bottom-right, 3=bottom, 4=bottom-left, 5=top-left, 6=middle
+  static const bool patterns[10][7] = {
+    {1,1,1,1,1,1,0}, // 0
+    {0,1,1,0,0,0,0}, // 1
+    {1,1,0,1,1,0,1}, // 2
+    {1,1,1,1,0,0,1}, // 3
+    {0,1,1,0,0,1,1}, // 4
+    {1,0,1,1,0,1,1}, // 5
+    {1,0,1,1,1,1,1}, // 6
+    {1,1,1,0,0,0,0}, // 7
+    {1,1,1,1,1,1,1}, // 8
+    {1,1,1,1,0,1,1}, // 9
+  };
+
+  if (digit < 0 || digit > 9)
+    return;
+
+  float t = w * 0.18f;  // segment thickness
+  float g = t * 0.15f;  // small gap between segments
+
+  // Horizontal segments
+  float hx1 = x + t + g;
+  float hx2 = x + w - t - g;
+
+  // Segment 0: top
+  if (patterns[digit][0])
+    draw_clock_segment(hx1, y, hx2, y + t, color);
+  // Segment 6: middle
+  if (patterns[digit][6])
+    draw_clock_segment(hx1, y + h / 2.0f - t / 2.0f, hx2, y + h / 2.0f + t / 2.0f, color);
+  // Segment 3: bottom
+  if (patterns[digit][3])
+    draw_clock_segment(hx1, y + h - t, hx2, y + h, color);
+
+  // Vertical segments
+  float vyt1 = y + t + g;
+  float vyb1 = y + h / 2.0f - g;
+  float vyt2 = y + h / 2.0f + g;
+  float vyb2 = y + h - t - g;
+
+  // Segment 5: top-left
+  if (patterns[digit][5])
+    draw_clock_segment(x, vyt1, x + t, vyb1, color);
+  // Segment 1: top-right
+  if (patterns[digit][1])
+    draw_clock_segment(x + w - t, vyt1, x + w, vyb1, color);
+  // Segment 4: bottom-left
+  if (patterns[digit][4])
+    draw_clock_segment(x, vyt2, x + t, vyb2, color);
+  // Segment 2: bottom-right
+  if (patterns[digit][2])
+    draw_clock_segment(x + w - t, vyt2, x + w, vyb2, color);
+}
+
+void CVisPictureIt::draw_clock_colon(float x, float y, float w, float h, sColor color)
+{
+  float dotSize = w * 0.45f;
+  float cx = x + (w - dotSize) / 2.0f;
+  draw_clock_segment(cx, y + h * 0.25f - dotSize / 2.0f, cx + dotSize, y + h * 0.25f + dotSize / 2.0f, color);
+  draw_clock_segment(cx, y + h * 0.75f - dotSize / 2.0f, cx + dotSize, y + h * 0.75f + dotSize / 2.0f, color);
+}
+
+void CVisPictureIt::draw_clock()
+{
+  time_t now = time(nullptr);
+  struct tm* lt = localtime(&now);
+  int hour = lt->tm_hour;
+  int minute = lt->tm_min;
+
+  int digits[4] = { hour / 10, hour % 10, minute / 10, minute % 10 };
+
+  // Layout constants
+  float digitW = 0.05f;
+  float digitH = 0.10f;
+  float gap = 0.012f;
+  float colonW = 0.02f;
+  float totalW = 4 * digitW + 3 * gap + colonW;
+
+  // Position: bottom-right, above the spectrum area
+  float startX = 0.95f - totalW;
+  float startY = 0.70f;
+
+  float shadowOff = 0.004f;
+  sColor shadowColor(0.0f, 0.0f, 0.0f, 0.8f);
+  sColor textColor(1.0f, 1.0f, 1.0f, 0.95f);
+
+  m_textureUsed = false;
+  EnableShader();
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+  // Shadow pass
+  float sx = startX + shadowOff;
+  float sy = startY + shadowOff;
+  draw_clock_digit(digits[0], sx, sy, digitW, digitH, shadowColor);
+  sx += digitW + gap;
+  draw_clock_digit(digits[1], sx, sy, digitW, digitH, shadowColor);
+  sx += digitW + gap;
+  draw_clock_colon(sx, sy, colonW, digitH, shadowColor);
+  sx += colonW + gap;
+  draw_clock_digit(digits[2], sx, sy, digitW, digitH, shadowColor);
+  sx += digitW + gap;
+  draw_clock_digit(digits[3], sx, sy, digitW, digitH, shadowColor);
+
+  // Main pass
+  float mx = startX;
+  float my = startY;
+  draw_clock_digit(digits[0], mx, my, digitW, digitH, textColor);
+  mx += digitW + gap;
+  draw_clock_digit(digits[1], mx, my, digitW, digitH, textColor);
+  mx += digitW + gap;
+  draw_clock_colon(mx, my, colonW, digitH, textColor);
+  mx += colonW + gap;
+  draw_clock_digit(digits[2], mx, my, digitW, digitH, textColor);
+  mx += digitW + gap;
+  draw_clock_digit(digits[3], mx, my, digitW, digitH, textColor);
+
+  glDisable(GL_BLEND);
+  DisableShader();
 }
 
 void CVisPictureIt::start_render()

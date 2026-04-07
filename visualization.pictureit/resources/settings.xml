@@ -93,5 +93,13 @@
         </setting>
       </group>
     </category>
+    <category id="clock" label="30012" help="0">
+      <group id="1" label="0">
+        <setting id="clock_enabled" type="boolean" label="30013" help="0">
+          <default>false</default>
+          <control type="toggle" />
+        </setting>
+      </group>
+    </category>
   </section>
 </settings>

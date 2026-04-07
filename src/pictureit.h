@@ -14,6 +14,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <atomic>
+#include <ctime>
 #include <mutex>
 #include <thread>
 
@@ -87,6 +88,10 @@ private:
   void load_next_image();
   void draw_image(GLuint img_tex_id, float opacity);
   void draw_bars(int i, GLfloat x1, GLfloat x2);
+  void draw_clock();
+  void draw_clock_segment(float x1, float y1, float x2, float y2, sColor color);
+  void draw_clock_digit(int digit, float x, float y, float w, float h, sColor color);
+  void draw_clock_colon(float x, float y, float w, float h, sColor color);
   void start_render();
   void finish_render();
 
@@ -98,6 +103,8 @@ private:
   int m_imgUpdateInterval = 180;
   int m_visEnabled = true;
   int m_visBgEnabled = true;
+
+  bool m_clockEnabled = false;
 
   // Used to define some "padding" left and right.
   // If set to 1.0 the bars will go to the screen edge

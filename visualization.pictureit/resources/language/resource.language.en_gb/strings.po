@@ -71,3 +71,11 @@ msgstr ""
 msgctxt "#30011"
 msgid "Animation speed"
 msgstr ""
+
+msgctxt "#30012"
+msgid "Clock"
+msgstr ""
+
+msgctxt "#30013"
+msgid "Show clock"
+msgstr ""
