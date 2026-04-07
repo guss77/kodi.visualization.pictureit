@@ -1,7 +1,7 @@
 Source: kodi-visualization-pictureit
 Priority: extra
 Maintainer: Nobody <nobody@kodi.tv>
-Build-Depends: debhelper (>= 9.0.0), cmake, kodi-addon-dev,
+Build-Depends: debhelper (>= 9.0.0), cmake, kodi-addons-dev,
                libgles2-mesa-dev [arm64 armhf], libgl1-mesa-dev [i386 amd64],
                libglm-dev
 Standards-Version: 4.1.2
